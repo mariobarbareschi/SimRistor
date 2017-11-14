@@ -16,4 +16,4 @@ add_executable(simristor src/main.cpp)
 target_include_directories(simristor
                            PRIVATE ${CMAKE_SOURCE_DIR}/inc
                            )
-target_link_libraries(simristor PRIVATE memristor xbar xbarcontroller xbarrun)
+target_link_libraries(simristor PRIVATE memristor xbar fblccontroller fblcrun)

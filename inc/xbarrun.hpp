@@ -20,31 +20,28 @@
 //===----------------------------------------------------------------------===//
 /// \file xbarrun.hpp
 /// \author Mario Barbareschi
-/// \brief This file describes the class for running a FBLS controller
+/// \brief This file describes a virtual class for running a controller
 //===----------------------------------------------------------------------===//
 
 #ifndef XBARRUN_HPP
 #define XBARRUN_HPP
 
-#include "xbarcontroller.hpp"
-
+#include "FBLCController.hpp"
 
 namespace simristor{
     
 class XBarRun {
-private:
-    XBarController *controller;
 protected:
     int cycles;
 public:
     
-    XBarRun(XBarController *controller): controller(controller), cycles(0) {}
-    XBarRun* run(bool* input, bool* output);
-    //~XBarRun();
+    XBarRun(): cycles(0) {}
+    //~XBarRun() = 0;
+    XBarRun* run(bool* input, bool* output) {cycles++; return this;}
     
-    int getCycles() const;
+    int getCycles() const{return cycles;}
     
-}; /*end class Memristor*/
+}; /*end class XBarRun*/
     
 }/*end namespace simristor*/
 

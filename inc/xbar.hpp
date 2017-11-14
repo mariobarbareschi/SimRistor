@@ -58,7 +58,7 @@ public:
     XBar(int rows, int columns, bool* configuration) : XBar("", rows, columns, configuration) {}
     XBar();
     ~XBar();
-};
+}; /*end class XBar*/
 
     
 }/*end namespace simristor*/
