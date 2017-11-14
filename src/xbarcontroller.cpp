@@ -1,4 +1,5 @@
 #include <assert.h>     /* assert */
+#include <algorithm>
 #include "xbarcontroller.hpp"
 #include "utils.h"
 
