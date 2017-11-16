@@ -68,3 +68,11 @@ simristor::Memristor& simristor::Memristor::operator=(Memristor memristor) noexc
     setState(memristor.getState());
     return *this;
 }
+
+bool simristor::Memristor::operator==(const simristor::Memristor& memristor) const {
+    return state == memristor.getState();
+}
+
+bool simristor::Memristor::operator!=(const simristor::Memristor& memristor) const {
+    return state != memristor.getState();
+}

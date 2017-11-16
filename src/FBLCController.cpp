@@ -25,6 +25,8 @@
 
 #include <assert.h>     /* assert */
 #include <algorithm>
+#include <utility> /*pair*/
+#include <vector> /*pair*/
 #include "FBLCController.hpp"
 #include "utils.h"
 
@@ -58,22 +60,83 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
     this->minterms = minterms;
     this->outputs = outputs;
     this->inputRow = inputRow;
-    
-    /*We need to popolate a vector which addresses input memristor columns*/
+        
     MInput = new int[2*inputs];
-    int j, literals = 0;
-    /*Here we are looking for input memristor which resides into the inputRow row*/
+    int i, j, literals = 0;
+    //The following block tries to populate two structures
+    //The first one is inputColumns that maps input memristors to a vector that includes minterm memristors which belongs to the same column
+    //The second one is mintermRows that maps i-th crossbar rows to a vector that includes minterm memristors which belongs to the same i-th row
     for(j = 0; j < crossbar->getColumns(); j++){
             if(crossbar->getMemristor(inputRow,j)){
+                inputMemristor.push_back(crossbar->getMemristor(inputRow,j));
                 MInput[literals++] = j;
                 DEBUG_PRINT("Found an input memristor at <"+std::to_string(inputRow)+", "+std::to_string(j)+">" << std::endl);
+                for(i = 0; i < crossbar->getRows(); i++){
+                    if(i != inputRow && crossbar->getMemristor(i, j)){
+                        if(inputColumns.end() == inputColumns.find(crossbar->getMemristor(inputRow,j))){
+                            inputColumns.insert(std::make_pair(
+                                crossbar->getMemristor(inputRow,j), std::vector<std::shared_ptr<Memristor>>()
+                            ));
+                        }
+                        inputColumns.find(crossbar->getMemristor(inputRow,j))->second.push_back(crossbar->getMemristor(i,j));
+                        
+                        if(mintermRows.end() == mintermRows.find(i)){
+                            mintermRows.insert(std::make_pair(i, std::vector<std::shared_ptr<Memristor>>() ));
+                        }
+                        mintermRows.find(i)->second.push_back(crossbar->getMemristor(i,j));
+                        
+                        DEBUG_PRINT("Found a minterm memristor at <"+std::to_string(i)+", "+std::to_string(j)+">" << std::endl);
+                    }
+                }
             }
     }
     assert(literals == 2*inputs && "Number of input memristor does not match the literals!");
     
+    //The following block prepares two structures
+    //The first one is mintermOutputRows that maps i-th crossbar rows to a vector that includes minterm memristors output which belongs to the same i-th row
+    //The second one is outputColumns that maps j-th crossbar column to a vector that includes memristors output which belongs to the same j-th column
+    for(j = 0; j < crossbar->getColumns(); j++){
+        if(!crossbar->getMemristor(inputRow,j)){
+            for(i = 0; i < crossbar->getRows(); i++){
+                if(i != inputRow && mintermRows.end() != mintermRows.find(i) && crossbar->getMemristor(i,j)){
+                    if(mintermOutputRows.end() == mintermOutputRows.find(i)){
+                        mintermOutputRows.insert(std::make_pair(i, std::vector<std::shared_ptr<Memristor>>()));
+                    }
+                    mintermOutputRows.find(i)->second.push_back(crossbar->getMemristor(i,j));
+                    DEBUG_PRINT("Found a minterm output memristor at <"+std::to_string(i)+", "+std::to_string(j)+">" << std::endl);
+                    
+                    if(outputColumns.end() == outputColumns.find(j)){
+                        outputColumns.insert(std::make_pair(j, std::vector<std::shared_ptr<Memristor>>()));
+                    }
+                    outputColumns.find(j)->second.push_back(crossbar->getMemristor(i,j));
+                }
+            }
+        }
+    }
+    
+    //The following block prepares outputNegMemristor, which map the output column with the output inverted memristor
+    for(i = 0; i < crossbar->getRows(); i++){
+        //Exclusing all minterm and input rows
+        if(i != inputRow && mintermOutputRows.end() == mintermOutputRows.find(i)){
+            for(j = 0; j < crossbar->getColumns(); j++){
+                //Excluding columns which are under input memristors and minterms
+                if(!crossbar->getMemristor(inputRow,j) && crossbar->getMemristor(i,j)){
+                    if(outputColumns.end() != outputColumns.find(j)){
+                        //This is a inverted memristor output
+                        outputNegMemristorColumn.insert(std::make_pair(j,crossbar->getMemristor(i,j)));
+                        outputNegMemristorRow.insert(std::make_pair(i,crossbar->getMemristor(i,j)));
+                    } else {
+                        //This is a directed memristor output
+                        outputMemristorRow.insert(std::make_pair(i,crossbar->getMemristor(i,j)));
+                    }
+                }
+            }
+        }
+    }
+    
     /*We need to popolate a vector which addresses minterms memristor rows*/
     MMinterm = new int[minterms];
-    int i, mint = 0;
+    int mint = 0;
     /*Here we need to identify the memristor which represents minterms, hence they have at least one memristor in the corresponding row which is an input memristor*/
     for(i = 0; i < crossbar->getRows(); i++){
         if(i != inputRow){
@@ -81,7 +144,7 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
                 while( j < 2*inputs && crossbar->getMemristor(i, MInput[j]) == nullptr) j++;
                 if(j < 2*inputs){
                     MMinterm[mint++] = i;
-                    DEBUG_PRINT("Found a minterm memristor at "+std::to_string(i)+" row" << std::endl);
+                    DEBUG_PRINT("Found a minterm output memristor at "+std::to_string(i)+" row" << std::endl);
                 }
         }
     }
@@ -182,25 +245,20 @@ simristor::FBLCController* simristor::FBLCController::ri(bool* inputValues){
     int j;
     for(j = 0; j < 2*inputs; j++)
                 *inputValues++ ? crossbar->getMemristor(inputRow, MInput[j])->set() : crossbar->getMemristor(inputRow, MInput[j])->reset();
-    DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
-    DEBUG_PRINT("RI successfully completed in "<< elapsed_secs << " ms" <<std::endl);
     
+    
+    DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
+    DEBUG_PRINT("RI successfully completed in "<< elapsed_secs << " ms" <<std::endl);        
     return this;
 }
 
 simristor::FBLCController* simristor::FBLCController::cfm(){
     DEBUG(clock_t begin = clock());
-    int j, i;
-    for(j = 0; j < 2*inputs; j++){ /*Looking for memristors belonging to the same column of a input memristor*/
-        for(i = 0; i < crossbar->getRows(); i++){
-            if(i != inputRow){
-                auto memptr = crossbar->getMemristor(i,j);
-                if(memptr){
-                    *memptr = *crossbar->getMemristor(inputRow, MInput[j]);
-                }
-            }
-        }
-    }
+    for(auto column : inputColumns)
+        if(!column.first->isHigh())
+            for(auto term : column.second)
+                *term = *column.first;
+    
     DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
     DEBUG_PRINT("CFM successfully completed in "<< elapsed_secs << " ms" <<std::endl);
     return this;
@@ -208,27 +266,20 @@ simristor::FBLCController* simristor::FBLCController::cfm(){
 
 simristor::FBLCController* simristor::FBLCController::evm(){
     DEBUG(clock_t begin = clock());
-    int j, i;
-    for(i = 0; i < minterms; i++){
-        int colIndex = 0;
-        /*We evaluate the value of each minterm
-        To to this, we retrieve values of minterm's memristors (memristors that are under a input memristor) and if we got at least one that is low its value is high (NAND)*/
-
-        while(colIndex < 2*inputs &&
-              (crossbar->getMemristor(MMinterm[i], MInput[colIndex]) == nullptr || (
-                crossbar->getMemristor(MMinterm[i], MInput[colIndex]) != nullptr && crossbar->getMemristor(MMinterm[i], MInput[colIndex])->isHigh()))
-             ) colIndex++;
-        /*If the while terminates without find a low value, the corresponding minterm must set to 0
-        Lets now find the corresponding minterms onto output columns*/
-        if(colIndex == 2*inputs){
-            for(j = 0; j < crossbar->getColumns(); j++){
-            /*If there is a memristor at <i,j> and j is not an input column*/
-            if(crossbar->getMemristor(MMinterm[i], j) != nullptr && std::find(MInput, MInput+2*inputs, j) == MInput+2*inputs){
-                crossbar->getMemristor(MMinterm[i], j)->reset();
-            }
+    //For each row of minterm output memristors
+    for(auto mintermValue : mintermOutputRows){
+        //Retrieve the corresponsing minterm memristors (i.e. ones belonging to the same row)
+        auto mintermLiteralsVector = mintermRows.find(mintermValue.first)->second;
+        //Search for minterm memristors which are set to logic-0 value
+        auto it = std::find_if(mintermLiteralsVector.begin(), mintermLiteralsVector.end(), [&](std::shared_ptr<simristor::Memristor> const& memristor) {
+            return *memristor == simristor::Memristor(simristor::LOW); // assumes MyType has operator==
+        });
+        //If none is found, we need to switch-off all minterm output memristors 
+        if (it == mintermLiteralsVector.end()) { /* do what you want with the value found */ 
+            for(auto value : mintermValue.second)
+                value->reset();
         }
-        }
-    }/*For all outputs*/
+    }
     DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
     DEBUG_PRINT("EVM successfully completed in "<< elapsed_secs << " ms" <<std::endl);
     return this;
@@ -236,21 +287,18 @@ simristor::FBLCController* simristor::FBLCController::evm(){
 
 simristor::FBLCController* simristor::FBLCController::evr(){
     DEBUG(clock_t begin = clock());
-    int j, i;
-    for(i = 0; i < outputs; i++){
-        j = 0;
-        while(j < minterms && (crossbar->getMemristor(MMinterm[j], MOutput[i]) == nullptr || (crossbar->getMemristor(MMinterm[j], MOutput[i]) != nullptr && crossbar->getMemristor(MMinterm[j], MOutput[i])->isHigh()))) j++;
-        if(j != minterms){
-            //We need to find the row of the output memristor
-            int rowIndex;
-            for(rowIndex = 0; rowIndex < crossbar->getRows(); rowIndex++){
-                if((std::find(MMinterm, MMinterm+minterms, rowIndex) == MMinterm+minterms) && 
-                    crossbar->getMemristor(rowIndex, MOutput[i]) != nullptr )
-                    crossbar->getMemristor(rowIndex, MOutput[i])->reset();
-            }
+    for(auto invertedOutput : outputNegMemristorColumn){
+        //Retrieve the corresponding memristor of the inverted output
+        auto mintermOutputValue = outputColumns.find(invertedOutput.first)->second;
+        //Search for minterm memristors which are set to logic-0 value
+        auto it = std::find_if(mintermOutputValue.begin(), mintermOutputValue.end(), [&](std::shared_ptr<simristor::Memristor> const& memristor) {
+            return *memristor == simristor::Memristor(simristor::LOW); // assumes MyType has operator==
+        });
+        //If at least one is found, we need to switch-off all minterm output memristors 
+        if (it != mintermOutputValue.end()) { /* do what you want with the value found */ 
+                invertedOutput.second->reset();
         }
-              
-    }/*For all minterms*/
+    }
     DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
     DEBUG_PRINT("EVR successfully completed in "<< elapsed_secs << " ms" <<std::endl);
     return this;
@@ -258,14 +306,13 @@ simristor::FBLCController* simristor::FBLCController::evr(){
 
 simristor::FBLCController* simristor::FBLCController::inr(){
     DEBUG(clock_t begin = clock());
-    int j, i;
-    for(i = 0; i < outputs; i++){
-        //Lets iterate along columns
-        j = 0;
-        while(j < crossbar->getColumns() && (j == MOutputDirectCol[i] || crossbar->getMemristor(MOutputDirectRow[i], j) == nullptr)) j++;
-        if(j < crossbar->getColumns())
-            crossbar->getMemristor(MOutputDirectRow[i], j)->isHigh() ? crossbar->getMemristor(MOutputDirectRow[i], MOutputDirectCol[i])->reset() : crossbar->getMemristor(MOutputDirectRow[i], MOutputDirectCol[i])->set();
+    
+    //Retrieve the directed output memristor
+    for(auto outMem : outputMemristorRow){
+        if(outputNegMemristorRow.find(outMem.first)->second->isHigh())
+            outMem.second->reset();
     }
+    
     DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
     DEBUG_PRINT("INR successfully completed in "<< elapsed_secs << " ms" <<std::endl);
     return this;

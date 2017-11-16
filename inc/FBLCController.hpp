@@ -27,6 +27,8 @@
 #define FBLCCONTROLLER_HPP
 
 #include <ostream>
+#include <memory>
+#include <unordered_map>
 
 #include "xbar.hpp"
 
@@ -50,6 +52,15 @@ protected:
     int outputs;
     
     int* MInput, *MMinterm, *MOutput, *MOutputDirectRow, *MOutputDirectCol;
+    std::vector<std::shared_ptr<Memristor>> inputMemristor;
+    std::unordered_map<std::shared_ptr<Memristor>,std::vector<std::shared_ptr<Memristor>>> inputColumns;
+    std::unordered_map<int,std::vector<std::shared_ptr<Memristor>>> mintermRows;
+    std::unordered_map<int,std::vector<std::shared_ptr<Memristor>>> mintermOutputRows;
+    std::unordered_map<int,std::vector<std::shared_ptr<Memristor>>> outputColumns;
+    std::unordered_map<int,std::shared_ptr<Memristor>> outputNegMemristorColumn;
+    std::unordered_map<int,std::shared_ptr<Memristor>> outputNegMemristorRow;
+    std::unordered_map<int,std::shared_ptr<Memristor>> outputMemristorRow;
+
     
     int inputRow;
     

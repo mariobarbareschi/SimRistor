@@ -53,10 +53,14 @@ public:
     Memristor* set();
     Memristor* reset();
     
-    Memristor(std::string tag) : switchingActivity(0), tag(tag), state(HIGH){}
+    Memristor(std::string tag, MemristorState state) : tag(tag), state(state), switchingActivity(0) {}
+    Memristor(std::string tag) : Memristor(tag,HIGH) {}
+    Memristor(MemristorState state) : Memristor("", state) {}
     Memristor() : Memristor("") {}
     
     Memristor& operator=(Memristor memristor) noexcept;
+    bool operator==(const Memristor& memristor) const;
+    bool operator!=(const Memristor& memristor) const;
 
     
 }; /*end class Memristor*/
