@@ -60,11 +60,12 @@ simristor::XBar* simristor::XBar::setColumns(int columns){
 simristor::XBar::XBar(std::string name, int rows, int columns, bool* configuration){
     int i, j;
     this->setName(name)->setRows(rows)->setColumns(columns);
-    pool = new Memristor*[columns*rows];
+    pool.reserve(columns*rows);
     for(i = 0; i < rows; i++){
         for(j = 0; j < columns; j++){
-            if(0 != configuration[i*columns + j])
-                pool[i*columns + j] = new Memristor(std::to_string(i)+" "+std::to_string(j));
+            if(0 
+               != configuration[i*columns + j])
+                pool[i*columns + j] = std::unique_ptr<simristor::Memristor>(new simristor::Memristor(std::to_string(i)+" "+std::to_string(j)));
         }
     }
 }
@@ -74,21 +75,21 @@ void simristor::XBar::print(std::ostream& outstream){
     int i, j;
     for(i = 0; i < rows; i++){
         for(j = 0; j < columns; j++)
-            outstream << "  |  ";
+            outstream << "    |";
         outstream << std::endl;
         for(j = 0; j < columns; j++){
             if(pool[i*columns + j] != NULL)
                 if(pool[i*columns + j]->isHigh())
-                    outstream << "_\033[0;31m/\033[0m|__";
+                    outstream << "___\033[0;31m/\033[0m|";
                 else
-                    outstream << "_\033[0;32m/\033[0m|__";
+                    outstream << "___\033[0;32m/\033[0m|";
             else
-                outstream << "__|__";
+                outstream << "____|";
         }
-        outstream << std::endl;
+        outstream << "__" << std::endl;
     }
     for(j = 0; j < columns; j++)
-            outstream << "  |  ";
+            outstream << "    |";
         outstream << std::endl;
 }
 
@@ -97,32 +98,32 @@ void simristor::XBar::printStat(std::ostream& outstream){
     int i, j;
     for(i = 0; i < rows; i++){
         for(j = 0; j < columns; j++)
-            outstream << "  |  ";
+            outstream << "    |";
         outstream << std::endl;
         for(j = 0; j < columns; j++){
             if(pool[i*columns + j] != NULL)
-                    outstream << std::setfill('_') << std::setw(2) << pool[i*columns + j]->getSwitchingActivity() << "|__";
+                    outstream << std::setfill('_') << std::setw(4) << pool[i*columns + j]->getSwitchingActivity() << "|";
             else
-                outstream << "__|__";
+                outstream << "____|";
         }
-        outstream << std::endl;
+        outstream << "__" << std::endl;
     }
     for(j = 0; j < columns; j++)
-            outstream << "  |  ";
+            outstream << "    |";
         outstream << std::endl;
 }
 
-simristor::Memristor* simristor::XBar::getMemristor(int i, int j) const{
+std::shared_ptr<simristor::Memristor> simristor::XBar::getMemristor(int i, int j) const{
     return pool[i*columns+j];
 }
 
 simristor::XBar::~XBar(){
-    int i, j;
-    for(i = 0; i < rows; i++){
-        for(j = 0; j < columns; j++){
-            if(pool[i*columns + j] != NULL)
-                delete pool[i*columns + j];
-        }
-    }
-    delete pool;
+    //smartpointer introduced, no need to delete
+    /*int i, j;    
+    for (auto it : pool)
+   {
+        if(it != NULL)
+            delete it;
+   } */
+   pool.clear();
 }

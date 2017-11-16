@@ -64,8 +64,7 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
     int j, literals = 0;
     /*Here we are looking for input memristor which resides into the inputRow row*/
     for(j = 0; j < crossbar->getColumns(); j++){
-            Memristor* memptr = crossbar->getMemristor(inputRow,j);
-            if(memptr != NULL){
+            if(crossbar->getMemristor(inputRow,j)){
                 MInput[literals++] = j;
                 DEBUG_PRINT("Found an input memristor at <"+std::to_string(inputRow)+", "+std::to_string(j)+">" << std::endl);
             }
@@ -79,7 +78,7 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
     for(i = 0; i < crossbar->getRows(); i++){
         if(i != inputRow){
                 j = 0;
-                while( j < 2*inputs && crossbar->getMemristor(i, MInput[j]) == NULL) j++;
+                while( j < 2*inputs && crossbar->getMemristor(i, MInput[j]) == nullptr) j++;
                 if(j < 2*inputs){
                     MMinterm[mint++] = i;
                     DEBUG_PRINT("Found a minterm memristor at "+std::to_string(i)+" row" << std::endl);
@@ -95,7 +94,7 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
         //If the columns is not an input one
         if(std::find(MInput, MInput+2*inputs, j) == MInput+2*inputs){
             i = 0;
-            while(i < minterms && crossbar->getMemristor(MMinterm[i], j) == NULL) i++;
+            while(i < minterms && crossbar->getMemristor(MMinterm[i], j) == nullptr) i++;
             //If we meet a memristor along the j-th column in correspondance to the minterms row, we got an output memristor
             if(i != minterms){
                 MOutput[outp++] = j;
@@ -116,7 +115,7 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
         i = 0;
         int rowPosition;
         while(countMemristor <= 1 && i < crossbar->getRows() ){
-            if(crossbar->getMemristor(i, j) != NULL){
+            if(crossbar->getMemristor(i, j) != nullptr){
                 countMemristor++;
                 rowPosition = i;
             }
@@ -167,8 +166,8 @@ simristor::FBLCController* simristor::FBLCController::ina(){
     int i, j;
     for(i = 0; i < crossbar->getRows(); i++){
         for(j = 0; j < crossbar->getColumns(); j++){
-            Memristor* memptr = crossbar->getMemristor(i,j);
-            if(memptr != NULL)
+            auto memptr = crossbar->getMemristor(i,j);
+            if(memptr)
                 memptr->set();
         }
     }
@@ -195,8 +194,8 @@ simristor::FBLCController* simristor::FBLCController::cfm(){
     for(j = 0; j < 2*inputs; j++){ /*Looking for memristors belonging to the same column of a input memristor*/
         for(i = 0; i < crossbar->getRows(); i++){
             if(i != inputRow){
-                Memristor* memptr = crossbar->getMemristor(i,j);
-                if(memptr != NULL){
+                auto memptr = crossbar->getMemristor(i,j);
+                if(memptr){
                     *memptr = *crossbar->getMemristor(inputRow, MInput[j]);
                 }
             }
@@ -216,15 +215,15 @@ simristor::FBLCController* simristor::FBLCController::evm(){
         To to this, we retrieve values of minterm's memristors (memristors that are under a input memristor) and if we got at least one that is low its value is high (NAND)*/
 
         while(colIndex < 2*inputs &&
-              (crossbar->getMemristor(MMinterm[i], MInput[colIndex]) == NULL || (
-                crossbar->getMemristor(MMinterm[i], MInput[colIndex]) != NULL && crossbar->getMemristor(MMinterm[i], MInput[colIndex])->isHigh()))
+              (crossbar->getMemristor(MMinterm[i], MInput[colIndex]) == nullptr || (
+                crossbar->getMemristor(MMinterm[i], MInput[colIndex]) != nullptr && crossbar->getMemristor(MMinterm[i], MInput[colIndex])->isHigh()))
              ) colIndex++;
         /*If the while terminates without find a low value, the corresponding minterm must set to 0
         Lets now find the corresponding minterms onto output columns*/
         if(colIndex == 2*inputs){
             for(j = 0; j < crossbar->getColumns(); j++){
             /*If there is a memristor at <i,j> and j is not an input column*/
-            if(crossbar->getMemristor(MMinterm[i], j) != NULL && std::find(MInput, MInput+2*inputs, j) == MInput+2*inputs){
+            if(crossbar->getMemristor(MMinterm[i], j) != nullptr && std::find(MInput, MInput+2*inputs, j) == MInput+2*inputs){
                 crossbar->getMemristor(MMinterm[i], j)->reset();
             }
         }
@@ -240,13 +239,13 @@ simristor::FBLCController* simristor::FBLCController::evr(){
     int j, i;
     for(i = 0; i < outputs; i++){
         j = 0;
-        while(j < minterms && (crossbar->getMemristor(MMinterm[j], MOutput[i]) == NULL || (crossbar->getMemristor(MMinterm[j], MOutput[i]) != NULL && crossbar->getMemristor(MMinterm[j], MOutput[i])->isHigh()))) j++;
+        while(j < minterms && (crossbar->getMemristor(MMinterm[j], MOutput[i]) == nullptr || (crossbar->getMemristor(MMinterm[j], MOutput[i]) != nullptr && crossbar->getMemristor(MMinterm[j], MOutput[i])->isHigh()))) j++;
         if(j != minterms){
             //We need to find the row of the output memristor
             int rowIndex;
             for(rowIndex = 0; rowIndex < crossbar->getRows(); rowIndex++){
                 if((std::find(MMinterm, MMinterm+minterms, rowIndex) == MMinterm+minterms) && 
-                    crossbar->getMemristor(rowIndex, MOutput[i]) != NULL )
+                    crossbar->getMemristor(rowIndex, MOutput[i]) != nullptr )
                     crossbar->getMemristor(rowIndex, MOutput[i])->reset();
             }
         }
@@ -263,7 +262,7 @@ simristor::FBLCController* simristor::FBLCController::inr(){
     for(i = 0; i < outputs; i++){
         //Lets iterate along columns
         j = 0;
-        while(j < crossbar->getColumns() && (j == MOutputDirectCol[i] || crossbar->getMemristor(MOutputDirectRow[i], j) == NULL)) j++;
+        while(j < crossbar->getColumns() && (j == MOutputDirectCol[i] || crossbar->getMemristor(MOutputDirectRow[i], j) == nullptr)) j++;
         if(j < crossbar->getColumns())
             crossbar->getMemristor(MOutputDirectRow[i], j)->isHigh() ? crossbar->getMemristor(MOutputDirectRow[i], MOutputDirectCol[i])->reset() : crossbar->getMemristor(MOutputDirectRow[i], MOutputDirectCol[i])->set();
     }
@@ -292,22 +291,22 @@ void simristor::FBLCController::print(std::ostream& outstream){
     int i, j;
     for(i = 0; i < crossbar->getRows(); i++){
         for(j = 0; j < crossbar->getColumns(); j++)
-            outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) << "  |  ";
-        outstream << "\033[0m" <<std::endl;
+            outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) << "    |";
+        outstream << "\033[0;47;30m" << "  " << "\033[0m" << std::endl <<  "\033[0m" ;
         for(j = 0; j < crossbar->getColumns(); j++){
-            if(crossbar->getMemristor(i,j) != NULL)
+            if(crossbar->getMemristor(i,j) != nullptr)
                 if(crossbar->getMemristor(i,j)->isHigh())
-                    outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) << "_\033[0;31m/" << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) <<"|__";
+                    outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) << "___\033[0;31m/" << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) <<"|";
                 else
-                    outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] )  << "_\033[0;32m/" << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) <<"|__";
+                    outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] )  << "___\033[0;32m/" << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) <<"|";
             else
-                outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) << "__|__";
+                outstream << codeColor(xbarStructure[i*crossbar->getColumns()+j] ) << "____|";
         }
-        outstream << "\033[0m" << std::endl <<  "\033[0m" ;
+        outstream << "\033[0;47;30m" << "__" << "\033[0m" << std::endl <<  "\033[0m" ;
     }
     for(j = 0; j < crossbar->getColumns(); j++)
-            outstream << codeColor(simristor::XBarBlock::NONE) << "  |  ";
-        outstream << "\033[0m" << std::endl;
+            outstream << codeColor(simristor::XBarBlock::NONE) << "    |";
+        outstream << "\033[0;47;30m" << "  " << "\033[0m" << std::endl <<  "\033[0m" ;
 }
 
 simristor::FBLCController::~FBLCController(){

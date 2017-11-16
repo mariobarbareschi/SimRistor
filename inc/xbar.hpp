@@ -28,13 +28,15 @@
 
 #include <string>
 #include <ostream>
+#include <vector>
+#include <memory>
 #include "memristor.hpp" 
 
 namespace simristor{
 
 class XBar{
 private:
-    Memristor** pool;
+    std::vector<std::shared_ptr<Memristor>> pool;
     std::string name;
 protected:
     int rows;
@@ -48,7 +50,7 @@ public:
     
     XBar* setName(const std::string);
     
-    Memristor* getMemristor(int i, int j) const;
+    std::shared_ptr<Memristor> getMemristor(int i, int j) const;
     
     void print(std::ostream&);
     void printStat(std::ostream&);
