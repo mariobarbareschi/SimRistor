@@ -45,14 +45,13 @@ enum XBarBlock{
 class FBLCController {
 private:
     XBar *crossbar;
-    XBarBlock *xbarStructure;
+    std::vector<XBarBlock> xbarStructure;
 protected:
     int inputs;
     int minterms;
     int outputs;
     
-    int* MInput, *MMinterm, *MOutput, *MOutputDirectRow, *MOutputDirectCol;
-    std::vector<std::shared_ptr<Memristor>> inputMemristor;
+    std::unordered_map<int, std::shared_ptr<Memristor>> inputMemristor;
     std::unordered_map<std::shared_ptr<Memristor>,std::vector<std::shared_ptr<Memristor>>> inputColumns;
     std::unordered_map<int,std::vector<std::shared_ptr<Memristor>>> mintermRows;
     std::unordered_map<int,std::vector<std::shared_ptr<Memristor>>> mintermOutputRows;
@@ -61,12 +60,12 @@ protected:
     std::unordered_map<int,std::shared_ptr<Memristor>> outputNegMemristorRow;
     std::unordered_map<int,std::shared_ptr<Memristor>> outputMemristorRow;
 
-    
     int inputRow;
     
 public:
     
     FBLCController(XBar* crossbar, int inputRow, int inputs, int minterms, int outputs);
+    FBLCController(XBar* crossbar, int inputRow) : FBLCController(crossbar, inputRow, 0, 0, 0) {}
     ~FBLCController();
     
     const XBar* getXBar() const;

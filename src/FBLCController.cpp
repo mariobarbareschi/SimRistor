@@ -26,7 +26,6 @@
 #include <assert.h>     /* assert */
 #include <algorithm>
 #include <utility> /*pair*/
-#include <vector> /*pair*/
 #include "FBLCController.hpp"
 #include "utils.h"
 
@@ -56,21 +55,18 @@ std::string codeColor(simristor::XBarBlock blk){
 
 simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inputs, int minterms, int outputs){
     this->crossbar = crossbar;
-    this->inputs = inputs;
-    this->minterms = minterms;
-    this->outputs = outputs;
     this->inputRow = inputRow;
         
-    MInput = new int[2*inputs];
-    int i, j, literals = 0;
+    int i, j = 0;
     //The following block tries to populate two structures
     //The first one is inputColumns that maps input memristors to a vector that includes minterm memristors which belongs to the same column
     //The second one is mintermRows that maps i-th crossbar rows to a vector that includes minterm memristors which belongs to the same i-th row
     for(j = 0; j < crossbar->getColumns(); j++){
             if(crossbar->getMemristor(inputRow,j)){
-                inputMemristor.push_back(crossbar->getMemristor(inputRow,j));
-                MInput[literals++] = j;
+                inputMemristor.insert(std::make_pair(j,crossbar->getMemristor(inputRow,j)));
+                
                 DEBUG_PRINT("Found an input memristor at <"+std::to_string(inputRow)+", "+std::to_string(j)+">" << std::endl);
+                
                 for(i = 0; i < crossbar->getRows(); i++){
                     if(i != inputRow && crossbar->getMemristor(i, j)){
                         if(inputColumns.end() == inputColumns.find(crossbar->getMemristor(inputRow,j))){
@@ -90,7 +86,14 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
                 }
             }
     }
-    assert(literals == 2*inputs && "Number of input memristor does not match the literals!");
+    
+    assert(inputs == 0 || inputs != 0 && inputColumns.size() == 2*inputs && "Number of input memristor does not match the literals!");
+    
+    this->inputs = inputColumns.size();
+
+    assert(minterms == 0 || minterms != 0 && mintermRows.size() == minterms && "Number of minterms does not match xbar structure!");
+    
+    this->minterms = mintermRows.size();
     
     //The following block prepares two structures
     //The first one is mintermOutputRows that maps i-th crossbar rows to a vector that includes minterm memristors output which belongs to the same i-th row
@@ -114,6 +117,8 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
         }
     }
     
+        
+    
     //The following block prepares outputNegMemristor, which map the output column with the output inverted memristor
     for(i = 0; i < crossbar->getRows(); i++){
         //Exclusing all minterm and input rows
@@ -134,93 +139,31 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
         }
     }
     
-    /*We need to popolate a vector which addresses minterms memristor rows*/
-    MMinterm = new int[minterms];
-    int mint = 0;
-    /*Here we need to identify the memristor which represents minterms, hence they have at least one memristor in the corresponding row which is an input memristor*/
-    for(i = 0; i < crossbar->getRows(); i++){
-        if(i != inputRow){
-                j = 0;
-                while( j < 2*inputs && crossbar->getMemristor(i, MInput[j]) == nullptr) j++;
-                if(j < 2*inputs){
-                    MMinterm[mint++] = i;
-                    DEBUG_PRINT("Found a minterm output memristor at "+std::to_string(i)+" row" << std::endl);
-                }
-        }
-    }
-    assert(minterms == mint && "Number of minterms does not match xbar structure!");
-    
-    /*We need to populate a vector which addresses output memristor column*/
-    MOutput = new int[outputs];
-    int outp = 0;
-    for(j = 0; j < crossbar->getColumns(); j++){
-        //If the columns is not an input one
-        if(std::find(MInput, MInput+2*inputs, j) == MInput+2*inputs){
-            i = 0;
-            while(i < minterms && crossbar->getMemristor(MMinterm[i], j) == nullptr) i++;
-            //If we meet a memristor along the j-th column in correspondance to the minterms row, we got an output memristor
-            if(i != minterms){
-                MOutput[outp++] = j;
-                DEBUG_PRINT("Found an output memristor at "+std::to_string(j)+" column" << std::endl);
-            }
-        }
-            
-    }
-    assert(outp == outputs && "Number of output does not match xbar structure!");
-    
-    /*We need to populate a vector which addresses output memristor (direct form) row*/
-    /*We can exploit the fact that output direct memristor are alone along a single column*/
-    MOutputDirectRow = new int[outputs];
-    MOutputDirectCol = new int[outputs];
-    outp = 0;
-    for(j = 0; j < crossbar->getColumns(); j++){
-        int countMemristor = 0;
-        i = 0;
-        int rowPosition;
-        while(countMemristor <= 1 && i < crossbar->getRows() ){
-            if(crossbar->getMemristor(i, j) != nullptr){
-                countMemristor++;
-                rowPosition = i;
-            }
-            i++;
-        }
-        if(1 == countMemristor){
-            MOutputDirectRow[outp] = rowPosition;
-            MOutputDirectCol[outp] = j;
-            DEBUG_PRINT("Found a direct output memristor at <"+std::to_string(rowPosition)+", "+std::to_string(j)+">" << std::endl);
-            outp++;
-        }
-    }
-    assert(outp == outputs && "Number of output does not match xbar structure!");
 
-    xbarStructure = new simristor::XBarBlock[crossbar->getRows()*crossbar->getColumns()];
-    for(i = 0; i < crossbar->getRows(); i++)
-        for(j = 0; j < crossbar->getColumns(); j++)
-            xbarStructure[i*crossbar->getColumns()+j] = simristor::XBarBlock::NONE;
+    assert(outputs == 0 || outputs != 0 && outputColumns.size() == outputs && "Number of output does not match xbar structure!");
+    assert(outputNegMemristorRow.size() == outputs && "Number of output does not match xbar structure!");
+    this->outputs = outputNegMemristorRow.size();
+
+    xbarStructure.reserve(crossbar->getRows()*crossbar->getColumns());
+    std::fill(xbarStructure.begin(), xbarStructure.end(), simristor::XBarBlock::NONE);
     
-    for(j = 0; j < 2*inputs; j++)
-        xbarStructure[inputRow*crossbar->getColumns() + MInput[j]] = simristor::XBarBlock::IN;
-    
-    for(i = 0; i < minterms; i++){
-            for(j = 0; j < 2*inputs; j++){
-                xbarStructure[MMinterm[i]*crossbar->getColumns()+MInput[j]] = simristor::XBarBlock::MINTERM;
-            }
-        
+    for(auto inMem : inputMemristor){
+        xbarStructure[inputRow*crossbar->getColumns() + inMem.first] = simristor::XBarBlock::IN;
+        for(auto row : mintermRows){
+            xbarStructure[row.first*crossbar->getColumns() + inMem.first] = simristor::XBarBlock::MINTERM;
+        }
     }
     
-    for(i = 0; i < minterms; i++){
-            for(j = 0; j < outputs; j++){
-                xbarStructure[MMinterm[i]*crossbar->getColumns()+MOutput[j]] = simristor::XBarBlock::AND;
-            }
+    for(auto row : mintermOutputRows)
+        for(auto col : outputColumns)
+            xbarStructure[row.first*crossbar->getColumns() + col.first] = simristor::XBarBlock::AND;
+
+    for(auto row : outputMemristorRow){
+        int i;
+        for(i = 0; i < crossbar->getColumns(); i++)
+            if(crossbar->getMemristor(row.first, i))
+                xbarStructure[row.first*crossbar->getColumns() + i] = simristor::XBarBlock::OL;
     }
-    
-    for(i = 0; i < outputs; i++){
-            for(j = 0; j < outputs; j++){
-                xbarStructure[MOutputDirectRow[i]*crossbar->getColumns()+MOutput[j]] = simristor::XBarBlock::OL;
-                xbarStructure[MOutputDirectRow[i]*crossbar->getColumns()+MOutputDirectCol[i]] = simristor::XBarBlock::OL;
-            }
-    }
-    //TODO completare xbarStructure per INV block
 }
 
 
@@ -242,10 +185,9 @@ simristor::FBLCController* simristor::FBLCController::ina(){
 
 simristor::FBLCController* simristor::FBLCController::ri(bool* inputValues){
     DEBUG(clock_t begin = clock());
-    int j;
-    for(j = 0; j < 2*inputs; j++)
-                *inputValues++ ? crossbar->getMemristor(inputRow, MInput[j])->set() : crossbar->getMemristor(inputRow, MInput[j])->reset();
     
+    for(auto& inputMem : inputMemristor)
+        *inputValues++ ? inputMem.second->reset() : inputMem.second->set();
     
     DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
     DEBUG_PRINT("RI successfully completed in "<< elapsed_secs << " ms" <<std::endl);        
@@ -272,7 +214,7 @@ simristor::FBLCController* simristor::FBLCController::evm(){
         auto mintermLiteralsVector = mintermRows.find(mintermValue.first)->second;
         //Search for minterm memristors which are set to logic-0 value
         auto it = std::find_if(mintermLiteralsVector.begin(), mintermLiteralsVector.end(), [&](std::shared_ptr<simristor::Memristor> const& memristor) {
-            return *memristor == simristor::Memristor(simristor::LOW); // assumes MyType has operator==
+            return *memristor == simristor::Memristor(simristor::LOW);
         });
         //If none is found, we need to switch-off all minterm output memristors 
         if (it == mintermLiteralsVector.end()) { /* do what you want with the value found */ 
@@ -308,10 +250,9 @@ simristor::FBLCController* simristor::FBLCController::inr(){
     DEBUG(clock_t begin = clock());
     
     //Retrieve the directed output memristor
-    for(auto outMem : outputMemristorRow){
+    for(auto outMem : outputMemristorRow)
         if(outputNegMemristorRow.find(outMem.first)->second->isHigh())
             outMem.second->reset();
-    }
     
     DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
     DEBUG_PRINT("INR successfully completed in "<< elapsed_secs << " ms" <<std::endl);
@@ -320,9 +261,10 @@ simristor::FBLCController* simristor::FBLCController::inr(){
 
 simristor::FBLCController* simristor::FBLCController::so(bool* outputValues){
     DEBUG(clock_t begin = clock());
-    int i;
-    for(i = 0; i < outputs; i++)
-                outputValues[i] = crossbar->getMemristor(MOutputDirectRow[i], MOutputDirectCol[i])->isHigh();
+
+    for(auto& outMem : outputMemristorRow)
+        *outputValues++ = outMem.second->isHigh();
+    
     DEBUG(double elapsed_secs = double(clock() - begin) / (CLOCKS_PER_SEC/1000));
     DEBUG_PRINT("SO successfully completed in "<< elapsed_secs << " ms" <<std::endl);
     return this;
@@ -357,10 +299,13 @@ void simristor::FBLCController::print(std::ostream& outstream){
 }
 
 simristor::FBLCController::~FBLCController(){
-    delete MInput;
-    delete MMinterm;
-    delete MOutput;
-    delete MOutputDirectRow;
-    delete MOutputDirectCol;
-    delete xbarStructure;
+    xbarStructure.clear();
+    inputMemristor.clear();
+    inputColumns.clear();
+    mintermRows.clear();
+    mintermOutputRows.clear();
+    outputColumns.clear();
+    outputNegMemristorColumn.clear();
+    outputNegMemristorRow.clear();
+    outputMemristorRow.clear();
 }
