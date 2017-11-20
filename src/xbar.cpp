@@ -115,6 +115,15 @@ void simristor::XBar::printStat(std::ostream& outstream){
         outstream << std::endl;
 }
 
+int simristor::XBar::getTotalSwitches() const{
+    int swt = 0;
+    for(auto m : pool)
+        if(m) swt += m->getSwitchingActivity();
+    return swt;
+            
+}
+
+
 std::shared_ptr<simristor::Memristor> simristor::XBar::getMemristor(int i, int j) const{
     return pool[i*columns+j];
 }

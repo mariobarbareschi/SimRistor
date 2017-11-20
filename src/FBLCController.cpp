@@ -141,7 +141,7 @@ simristor::FBLCController::FBLCController(XBar* crossbar, int inputRow, int inpu
     
 
     assert(outputs == 0 || outputs != 0 && outputColumns.size() == outputs && "Number of output does not match xbar structure!");
-    assert(outputNegMemristorRow.size() == outputs && "Number of output does not match xbar structure!");
+    assert(outputs == 0 || outputs != 0 && outputNegMemristorRow.size() == outputs && "Number of output does not match xbar structure!");
     this->outputs = outputNegMemristorRow.size();
 
     xbarStructure.reserve(crossbar->getRows()*crossbar->getColumns());

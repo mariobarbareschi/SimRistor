@@ -55,6 +55,7 @@ public:
     void print(std::ostream&);
     void printStat(std::ostream&);
 
+    int getTotalSwitches() const;
     
     XBar(std::string name, int rows, int columns, bool* configuration);
     XBar(int rows, int columns, bool* configuration) : XBar("", rows, columns, configuration) {}
