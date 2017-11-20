@@ -63,9 +63,10 @@ simristor::XBar::XBar(std::string name, int rows, int columns, bool* configurati
     pool.reserve(columns*rows);
     for(i = 0; i < rows; i++){
         for(j = 0; j < columns; j++){
-            if(0 
-               != configuration[i*columns + j])
-                pool[i*columns + j] = std::unique_ptr<simristor::Memristor>(new simristor::Memristor(std::to_string(i)+" "+std::to_string(j)));
+            if(0 != configuration[i*columns + j])
+                pool.push_back(std::shared_ptr<simristor::Memristor>(new simristor::Memristor(std::to_string(i)+" "+std::to_string(j))));
+            else
+                pool.push_back(nullptr);
         }
     }
 }
@@ -78,13 +79,14 @@ void simristor::XBar::print(std::ostream& outstream){
             outstream << "    |";
         outstream << std::endl;
         for(j = 0; j < columns; j++){
-            if(pool[i*columns + j] != NULL)
+            if(nullptr != pool[i*columns + j]){
                 if(pool[i*columns + j]->isHigh())
                     outstream << "___\033[0;31m/\033[0m|";
                 else
                     outstream << "___\033[0;32m/\033[0m|";
-            else
+            }else{
                 outstream << "____|";
+            }
         }
         outstream << "__" << std::endl;
     }
@@ -101,7 +103,7 @@ void simristor::XBar::printStat(std::ostream& outstream){
             outstream << "    |";
         outstream << std::endl;
         for(j = 0; j < columns; j++){
-            if(pool[i*columns + j] != NULL)
+            if(pool[i*columns + j])
                     outstream << std::setfill('_') << std::setw(4) << pool[i*columns + j]->getSwitchingActivity() << "|";
             else
                 outstream << "____|";
@@ -118,12 +120,5 @@ std::shared_ptr<simristor::Memristor> simristor::XBar::getMemristor(int i, int j
 }
 
 simristor::XBar::~XBar(){
-    //smartpointer introduced, no need to delete
-    /*int i, j;    
-    for (auto it : pool)
-   {
-        if(it != NULL)
-            delete it;
-   } */
    pool.clear();
 }
